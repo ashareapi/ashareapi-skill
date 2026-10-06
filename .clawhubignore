@@ -1,0 +1,3 @@
+# The reusable ClawHub publish workflow checks the ClawHub CLI source out into
+# clawhub-source/ inside this workspace. That is tooling, not part of this skill.
+clawhub-source/
