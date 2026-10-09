@@ -1,0 +1,63 @@
+# Publishes this skill to ClawHub (https://clawhub.ai), the public skill registry for OpenClaw.
+# ClawHub skips unchanged content, so a run that changes nothing publishes nothing.
+#
+# One-time setup:
+#   1. npx clawhub login     # sign in with the GitHub account that owns this repository
+#   2. npx clawhub token     # copy the printed clh_... value
+#   3. Add it as a repository secret named CLAWHUB_TOKEN
+#      Settings -> Secrets and variables -> Actions -> New repository secret
+#
+# Until the secret exists this workflow stays green and skips the publish.
+# To publish under an organization handle once one exists on ClawHub, add
+#   owner: <handle>
+# to the `with:` block below.
+
+name: Publish to ClawHub
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview only (no publish)
+        type: boolean
+        default: true
+
+jobs:
+  ready:
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.check.outputs.has_token }}
+    steps:
+      - id: check
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [[ -n "$CLAWHUB_TOKEN" ]]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAWHUB_TOKEN is not set, so the ClawHub publish was skipped. See the header of this workflow for setup."
+          fi
+
+  clawhub:
+    needs: ready
+    if: needs.ready.outputs.has_token == 'true'
+    # The reusable workflow asks for id-token: write, so the caller has to allow it too.
+    permissions:
+      contents: read
+      id-token: write
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
+    with:
+      # The skill sits at the repository root, so the whole repository is the skill folder.
+      skill_path: .
+      # Listing metadata for the skill page (ClawHub only reads SKILL.md for content;
+      # these are publish-time fields).
+      changelog: "量化能力补齐：新增 7 个端点（量化回测 / 批量回测 / 策略清单 / 因子库 / 方法论库 / 全历史K线 / IP白名单）—— 端点总数 33 → 40，MCP 工具 25 → 31。原 33 个端点的参数与字段语义、单位换算、日期口径、常见错误与限流处理保持不变；其中 5 个端点无需 Key。"
+      topics: a-share,stock-data,finance,china-stock-market,quant,stock-api,market-data
+      # A push publishes; a manual run only previews unless the switch is turned off.
+      # Real publishes need CLAWHUB_TOKEN - skill publishing has no OIDC support yet.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
