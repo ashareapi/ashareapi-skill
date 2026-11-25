@@ -4,7 +4,7 @@ description: 用 ashareapi 获取 A 股数据：行情 / K线 / 财务三表 / �
 license: MIT
 metadata:
   version: "0.3.1"
-  updated: "2026-11-09"
+  updated: "2026-11-25"
   homepage: "https://ashareapi.com"
   docs: "https://ashareapi.com/docs"
   endpoints: "https://ashareapi.com/endpoints"
@@ -253,7 +253,7 @@ console.log(await paid.screen({ preset: "low_pe", sort: "roe_ttm", limit: 10 }))
 
 ## 九、本 skill 版本
 
-**当前版本：`0.3.1`（2026-11-09）**
+**当前版本：`0.3.1`（2026-11-25）**
 
 **本版覆盖**：
 - **102 个端点 / 94 个 MCP 工具**（免费端点 8 个 + 2 个工具端点无需 Key）。
