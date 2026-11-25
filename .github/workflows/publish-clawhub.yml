@@ -1,16 +1,13 @@
-# Publishes this skill to ClawHub (https://clawhub.ai), the public skill registry for OpenClaw.
-# ClawHub skips unchanged content, so a run that changes nothing publishes nothing.
+# Publishes this skill to ClawHub (https://clawhub.ai).
 #
-# One-time setup:
-#   1. npx clawhub login     # sign in with the GitHub account that owns this repository
-#   2. npx clawhub token     # copy the printed clh_... value
-#   3. Add it as a repository secret named CLAWHUB_TOKEN
-#      Settings -> Secrets and variables -> Actions -> New repository secret
+# The published slug is fixed here instead of being derived from the repository
+# folder name: GitHub checks the repo out into a directory named after the repo,
+# and ClawHub uses that directory name as the slug. Passing `--slug` keeps the
+# listing at https://clawhub.ai/ashareapi/skills/ashareapi.
 #
-# Until the secret exists this workflow stays green and skips the publish.
-# To publish under an organization handle once one exists on ClawHub, add
-#   owner: <handle>
-# to the `with:` block below.
+# One-time setup: add a repository secret named CLAWHUB_TOKEN
+# (Settings -> Secrets and variables -> Actions). Without it every step is
+# skipped and the run stays green.
 
 name: Publish to ClawHub
 
@@ -24,40 +21,84 @@ on:
         type: boolean
         default: true
 
+concurrency:
+  group: clawhub-publish
+  cancel-in-progress: false
+
 jobs:
-  ready:
+  publish:
     runs-on: ubuntu-latest
-    outputs:
-      has_token: ${{ steps.check.outputs.has_token }}
+    permissions:
+      contents: read
+    env:
+      SITE: https://clawhub.ai
+      REGISTRY: https://clawhub.ai
+      SLUG: ashareapi
+      VERSION: 0.3.1
+      TOPICS: a-share,stock-data,finance,china-stock-market,quant
+      CHANGELOG: >-
+        端点总数 102、MCP 工具 94。本版补齐量化与多市场能力：量化回测 / 批量回测 / 策略清单 /
+        因子库 / 方法论库 / 全历史K线 / L2 大单拆解 / 期货外汇 / 自选列表 / 资讯公告。
+        10 个端点无需 Key（7 个数据端点 + 1 个文档检索 + 2 个工具端点：quote / kline / hot /
+        market-overview / changedist / models / trade-calendar / wiki + health / challenge）。
     steps:
-      - id: check
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Load the ClawHub CLI
+        run: |
+          git clone --depth 1 https://github.com/openclaw/clawhub "$RUNNER_TEMP/clawhub-cli"
+          cd "$RUNNER_TEMP/clawhub-cli"
+          bun install --frozen-lockfile
+
+      - name: Configure credentials
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
         run: |
-          if [[ -n "$CLAWHUB_TOKEN" ]]; then
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CLAWHUB_TOKEN is not set, so the ClawHub publish was skipped. See the header of this workflow for setup."
+          if [[ -z "$CLAWHUB_TOKEN" ]]; then
+            echo "::notice::CLAWHUB_TOKEN is not set, so nothing is published."
+            echo "HAS_TOKEN=false" >> "$GITHUB_ENV"
+            exit 0
           fi
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-  clawhub:
-    needs: ready
-    if: needs.ready.outputs.has_token == 'true'
-    # The reusable workflow asks for id-token: write, so the caller has to allow it too.
-    permissions:
-      contents: read
-      id-token: write
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
-    with:
-      # The skill sits at the repository root, so the whole repository is the skill folder.
-      skill_path: .
-      # Listing metadata for the skill page (ClawHub only reads SKILL.md for content;
-      # these are publish-time fields).
-      changelog: "端点总数 102、MCP 工具 94。本版补齐量化与多市场能力：量化回测 / 批量回测 / 策略清单 / 因子库 / 方法论库 / 全历史K线 / L2 大单拆解 / 期货外汇 / 自选列表 / 资讯公告。10 个端点无需 Key（7 个数据端点 + 1 个文档检索 + 2 个工具端点：`quote` / `kline` / `hot` / `market-overview` / `changedist` / `models` / `trade-calendar` / `wiki` + `health` / `challenge`）。"
-      topics: a-share,stock-data,finance,china-stock-market,quant
-      # A push publishes; a manual run only previews unless the switch is turned off.
-      # Real publishes need CLAWHUB_TOKEN - skill publishing has no OIDC support yet.
-      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+          path = Path(os.environ["RUNNER_TEMP"]) / "clawhub-config.json"
+          path.write_text(
+              json.dumps({"registry": os.environ["REGISTRY"], "token": os.environ["CLAWHUB_TOKEN"]}),
+              encoding="utf-8",
+          )
+          PY
+          echo "CLAWHUB_CONFIG_PATH=$RUNNER_TEMP/clawhub-config.json" >> "$GITHUB_ENV"
+          echo "HAS_TOKEN=true" >> "$GITHUB_ENV"
+
+      # A first run without --slug created a second listing named after the
+      # repository folder. Remove it so only /skills/ashareapi remains.
+      - name: Remove the duplicate listing
+        if: env.HAS_TOKEN == 'true'
+        continue-on-error: true
+        run: |
+          bun "$RUNNER_TEMP/clawhub-cli/packages/clawhub/src/cli.ts" \
+            --workdir "$GITHUB_WORKSPACE" --site "$SITE" --registry "$REGISTRY" \
+            delete ashareapi-skill --yes --reason "Duplicate of ashareapi (folder-name slug)"
+
+      - name: Publish
+        if: env.HAS_TOKEN == 'true'
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          args=(
+            "$RUNNER_TEMP/clawhub-cli/packages/clawhub/src/cli.ts"
+            --workdir "$GITHUB_WORKSPACE" --site "$SITE" --registry "$REGISTRY"
+            skill publish . --slug "$SLUG" --version "$VERSION" --json
+            --changelog "$CHANGELOG" --topics "$TOPICS"
+          )
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          bun "${args[@]}"
