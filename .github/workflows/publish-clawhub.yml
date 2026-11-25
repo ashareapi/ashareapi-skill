@@ -54,8 +54,8 @@ jobs:
       skill_path: .
       # Listing metadata for the skill page (ClawHub only reads SKILL.md for content;
       # these are publish-time fields).
-      changelog: "量化能力补齐：新增 7 个端点（量化回测 / 批量回测 / 策略清单 / 因子库 / 方法论库 / 全历史K线 / IP白名单）—— 端点总数 33 → 40，MCP 工具 25 → 31。原 33 个端点的参数与字段语义、单位换算、日期口径、常见错误与限流处理保持不变；其中 5 个端点无需 Key。"
-      topics: a-share,stock-data,finance,china-stock-market,quant,stock-api,market-data
+      changelog: "端点总数 102、MCP 工具 94。本版补齐量化与多市场能力：量化回测 / 批量回测 / 策略清单 / 因子库 / 方法论库 / 全历史K线 / L2 大单拆解 / 期货外汇 / 自选列表 / 资讯公告。10 个端点无需 Key（7 个数据端点 + 1 个文档检索 + 2 个工具端点：`quote` / `kline` / `hot` / `market-overview` / `changedist` / `models` / `trade-calendar` / `wiki` + `health` / `challenge`）。"
+      topics: a-share,stock-data,finance,china-stock-market,quant
       # A push publishes; a manual run only previews unless the switch is turned off.
       # Real publishes need CLAWHUB_TOKEN - skill publishing has no OIDC support yet.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
