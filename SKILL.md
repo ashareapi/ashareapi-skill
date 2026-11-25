@@ -284,7 +284,7 @@ console.log(await paid.screen({ preset: "low_pe", sort: "roe_ttm", limit: 10 }))
 
 ### 怎么更新
 
-1. 重新下载：**https://ashareapi.com/skill**（页面有 zip 下载）
+1. 重新下载：[ashareapi.com/skill](https://ashareapi.com/skill)（页面有 zip 下载）
 2. 解压覆盖到 skills 目录（`.claude/skills/` · `.agents/skills/` · `.opencode/skills/` 等）
 3. 重启客户端
 
